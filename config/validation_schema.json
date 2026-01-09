@@ -1,0 +1,120 @@
+{
+  "tenant_id": "bi",
+  "expected_columns": [
+    "username",
+    "password",
+    "name",
+    "mobile_number",
+    "gender",
+    "date_of_birth",
+    "email",
+    "correspondence_address",
+    "roles",
+    "employment_type",
+    "date_of_joining",
+    "department",
+    "designation",
+    "campaign_name",
+    "administrative_area",
+    "boundary_code"
+  ],
+  "mandatory_columns": [
+    "username",
+    "password",
+    "name",
+    "roles",
+    "employment_type",
+    "date_of_joining",
+    "department",
+    "campaign_name",
+    "administrative_area",
+    "boundary_code"
+  ],
+  "validation_rules": {
+    "username": {
+      "type": "regex",
+      "pattern": "^[^/\\.]+$",
+      "error_message": "Username contains invalid characters ('/' or '.')",
+      "required": true
+    },
+    "password": {
+      "type": "regex",
+      "pattern": ".*[A-Z].*",
+      "error_message": "Password must contain at least one uppercase letter",
+      "required": true
+    },
+    "name": {
+      "type": "regex",
+      "pattern": "^[A-Za-z ]+$",
+      "error_message": "Name must contain only alphabets and spaces",
+      "required": true
+    },
+    "mobile_number": {
+      "type": "custom",
+      "validation": "check_duplicate_in_csv",
+      "error_message": "Duplicate mobile_number inside CSV",
+      "required": true
+    },
+    "gender": {
+      "type": "enum",
+      "allowed_values": ["MALE", "FEMALE", "OTHER"],
+      "error_message": "Gender must be MALE, FEMALE, or OTHER",
+      "required": false
+    },
+    "date_of_birth": {
+      "type": "date",
+      "format": "%d/%m/%Y",
+      "error_message": "Date of birth must be in DD/MM/YYYY format",
+      "required": false
+    },
+    "email": {
+      "type": "regex",
+      "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+      "error_message": "Invalid email format",
+      "required": false
+    },
+    "roles": {
+      "type": "custom",
+      "validation": "check_roles_mapping",
+      "error_message": "Invalid role",
+      "required": true
+    },
+    "employment_type": {
+      "type": "enum",
+      "allowed_values": ["TEMPORARY", "PERMANENT"],
+      "error_message": "Invalid employment_type (must be TEMPORARY or PERMANENT)",
+      "required": true
+    },
+    "date_of_joining": {
+      "type": "date",
+      "format": "%d/%m/%Y",
+      "error_message": "date_of_joining must be in DD/MM/YYYY format",
+      "default": "today",
+      "required": true
+    },
+    "department": {
+      "type": "enum",
+      "allowed_values": ["OTHER"],
+      "error_message": "department must be OTHER",
+      "required": true
+    },
+    "campaign_name": {
+      "type": "enum",
+      "allowed_values": ["LLIN-bi"],
+      "error_message": "Invalid campaign_name. Must be one of: LLIN-bi",
+      "required": true
+    },
+    "boundary_code": {
+      "type": "custom",
+      "validation": "check_boundary",
+      "error_message": "Invalid boundary_code",
+      "required": true
+    },
+    "administrative_area": {
+      "type": "custom",
+      "validation": "check_administrative_area",
+      "error_message": "Invalid administrative_area",
+      "required": true
+    }
+  }
+}

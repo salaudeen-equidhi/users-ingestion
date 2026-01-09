@@ -1,0 +1,10 @@
+username,password,name,mobile_number,gender,date_of_birth,email,correspondence_address,roles,employment_type,date_of_joining,department,designation,campaign_name,administrative_area,boundary_code
+csv-test-1,egov@1234,csv test one,95731411,,,,,Distributor,TEMPORARY,25/11/2025,OTHER,,LLIN-bi,KANAMA,KNVmrxNugg2EoSfRbrXX3f
+Csv-test/2,Egov@1234,csv test two,95731412,,,,,Distributor,TEMPORARY,25/11/2025,OTHER,,LLIN-bi,KANAMA,KNVmrxNugg2EoSfRbrXX3f
+csv-test-3,Egov@1234,csv test 3,95731413,,,,,Distributor,TEMPORARY,25/11/2025,OTHER,,LLIN-bi,KANAMA,KNVmrxNugg2EoSfRbrXX3f
+csv-test-4,Egov@1234,csv test ,90697328,,,,,Distributor,TEMPORARY,25/11/2025,OTHER,,LLIN-bi,KANAMA,KNVmrxNugg2EoSfRbrXX3f
+csv-test-5,Egov@1234,csv test ,95731413,,,,,Distributor,TEMPORARY,25/11/2025,OTHER,,LLIN-bi,KANAMA,KNVmrxNugg2EoSfRbrXX3f
+csv-test-6,Egov@1234,csv test ,95731414,,,,,Distributer,TEMPORARY,25/11/2025,OTHER,,LLIN-bi,KANAMA,KNVmrxNugg2EoSfRbrXX3f
+bi-uat-reg-10750,Egov@1234,csv test ,95731415,,,,,Distributor,TEMPORARY,,OTHER,,LLIN-bi,KANAMA,KNVmrxNugg2EoSfRbrXX3f
+csv-test-8,Egov@1234,csv test ,95731416,,,,,Distributor,TEMPORARY,25/11/2025,OTHER,,LLIN-bi,KANA,KNrxNugg2EoSfRbrXX3f
+csv-test-9,Egov@1234,csv test ,95731417,,,,,Distributor,TEMPORARY,25/11/2025,OTHER,,LLIN-bi,KANAMA,KNVmrxNugg2EoSfRbrXX3f
