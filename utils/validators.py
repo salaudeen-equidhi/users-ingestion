@@ -1,6 +1,6 @@
 """
-CSV Validation Module
-Handles all validation logic based on schema configuration
+Generic MDMS CSV Validation Module
+Plug-and-play validator for any MDMS JSON Schema
 """
 
 import pandas as pd
@@ -12,44 +12,50 @@ import os
 
 class CSVValidator:
     """
-    CSV Validator class that validates user data based on schema
+    Generic CSV Validator that works with any MDMS JSON Schema
+    Supports custom validation hooks for domain-specific logic
     """
 
-    def __init__(self, schema_path="config/validation_schema.json",
-                 roles_mapping_path="templates/rolesmapping.json",
-                 boundary_path="templates/boundary_template.csv"):
+    def __init__(self, schema_path=None, reference_data=None, custom_validators=None):
         """
-        Initialize validator with schema and reference data
+        Initialize generic validator with MDMS schema
 
         Args:
-            schema_path: Path to validation schema JSON
-            roles_mapping_path: Path to roles mapping JSON
-            boundary_path: Path to boundary CSV
+            schema_path: Path to MDMS JSON Schema
+            reference_data: Dict of reference data for lookups
+                           e.g., {"roles": {...}, "boundaries": {...}}
+            custom_validators: Dict of custom validation functions
+                              e.g., {"field_name": validation_function}
         """
-        # Load schema
-        with open(schema_path, 'r') as f:
-            self.schema = json.load(f)
+        # Determine schema path: use provided path or default project schema
+        if not schema_path:
+            default_schema = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'user_validation_mdms_schema.json')
+            schema_path = default_schema
 
-        # Load roles mapping
-        with open(roles_mapping_path, 'r') as f:
-            self.roles_map = json.load(f)
-        self.allowed_roles = set(self.roles_map.keys())
+        # Load MDMS schema
+        try:
+            with open(schema_path, 'r') as f:
+                self.schema = json.load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Schema file not found at: {schema_path}")
+        except json.JSONDecodeError:
+            raise ValueError(f"Schema file is not valid JSON: {schema_path}")
 
-        # Load boundary data
-        self.boundary_df = pd.read_csv(boundary_path)
-        self.boundary_dict = {
-            str(row["id"]).strip(): str(row["name"]).strip()
-            for _, row in self.boundary_df.iterrows()
-        }
+        # Extract metadata from MDMS schema
+        self.required_fields = self.schema.get("required", [])
+        self.unique_fields = self.schema.get("x-unique", [])
+        self.properties = self.schema.get("properties", {})
+        self.expected_cols = list(self.properties.keys())
 
-        self.tenant_id = self.schema.get("tenant_id", "bi")
-        self.expected_cols = self.schema.get("expected_columns", [])
-        self.mandatory_cols = self.schema.get("mandatory_columns", [])
-        self.validation_rules = self.schema.get("validation_rules", {})
+        # Store reference data for custom validations
+        self.reference_data = reference_data or {}
+
+        # Store custom validators (field_name -> validation_function)
+        self.custom_validators = custom_validators or {}
 
     def validate_headers(self, df):
         """
-        Validate CSV headers against expected columns
+        Validate CSV headers against MDMS schema properties
 
         Args:
             df: pandas DataFrame
@@ -61,8 +67,8 @@ class CSVValidator:
         missing = set(self.expected_cols) - set(csv_headers)
         extra = set(csv_headers) - set(self.expected_cols)
 
-        if self.expected_cols == csv_headers:
-            return "CORRECT", "Headers match. No issues."
+        if not missing and not extra:
+            return "CORRECT", "Headers match schema. No issues."
         else:
             msg = ""
             if missing:
@@ -71,125 +77,98 @@ class CSVValidator:
                 msg += f"Extra columns: {list(extra)}."
             return "ERROR", msg.strip()
 
-    def validate_field(self, field_name, value, rule):
+    def validate_field_against_schema(self, field_name, value):
         """
-        Validate a single field based on its rule
+        Validate a single field against MDMS JSON schema definition
 
         Args:
             field_name: Name of the field
             value: Value to validate
-            rule: Validation rule from schema
 
         Returns:
-            str or None: Error message if validation fails, None otherwise
+            list: List of error messages
         """
-        value_str = str(value).strip()
-
-        # Handle empty values
-        if value_str == "" or value_str.lower() == "nan":
-            if rule.get("required", False):
-                return f"{field_name} is required"
-            return None
-
-        validation_type = rule.get("type")
-
-        if validation_type == "regex":
-            pattern = rule.get("pattern")
-            if not re.fullmatch(pattern, value_str):
-                return rule.get("error_message", f"Invalid {field_name}")
-
-        elif validation_type == "enum":
-            allowed_values = rule.get("allowed_values", [])
-            if value_str.upper() not in [v.upper() for v in allowed_values]:
-                return rule.get("error_message", f"Invalid {field_name}")
-
-        elif validation_type == "date":
-            date_format = rule.get("format", "%d/%m/%Y")
-            try:
-                datetime.strptime(value_str, date_format)
-            except:
-                return rule.get("error_message", f"Invalid date format for {field_name}")
-
-        return None
-
-    def validate_date_of_joining(self, date_str):
-        """
-        Validate and correct date of joining
-
-        Args:
-            date_str: Date string to validate
-
-        Returns:
-            tuple: (corrected_date, error_message)
-        """
-        today = datetime.now().strftime("%d/%m/%Y")
-        date_str = str(date_str).strip()
-
-        if date_str == "" or date_str.lower() == "nan":
-            return today, None
-
-        try:
-            datetime.strptime(date_str, "%d/%m/%Y")
-            return date_str, None
-        except:
-            return today, "date_of_joining must be in DD/MM/YYYY format"
-
-    def validate_roles(self, role_string):
-        """
-        Validate roles against roles mapping
-
-        Args:
-            role_string: Comma-separated roles
-
-        Returns:
-            str or None: Error message if validation fails
-        """
-        if str(role_string).strip() == "":
-            return "roles cannot be empty"
-
-        user_roles = [r.strip() for r in str(role_string).split(",")]
-        errors = [f"Invalid role: {r}" for r in user_roles if r not in self.allowed_roles]
-
-        return ", ".join(errors) if errors else None
-
-    def validate_boundary(self, boundary_code, administrative_area):
-        """
-        Validate boundary code and administrative area
-
-        Args:
-            boundary_code: Boundary code
-            administrative_area: Administrative area name
-
-        Returns:
-            str or None: Error message if validation fails
-        """
-        boundary_code = str(boundary_code).strip()
-        administrative_area = str(administrative_area).strip()
-
         errors = []
 
-        if boundary_code not in self.boundary_dict:
-            errors.append(f"Invalid boundary_code: {boundary_code}")
+        if field_name not in self.properties:
+            return errors
 
-        if administrative_area not in self.boundary_dict.values():
-            errors.append(f"Invalid administrative_area: {administrative_area}")
+        field_schema = self.properties[field_name]
+        value_str = str(value).strip()
 
-        if errors:
-            return ", ".join(errors)
+        # Handle null/empty values
+        is_empty = value_str == "" or value_str.lower() == "nan" or pd.isna(value)
 
-        expected_name = self.boundary_dict.get(boundary_code)
+        if is_empty:
+            if field_name in self.required_fields:
+                errors.append(f"{field_name} is required")
+            return errors
 
-        if expected_name and administrative_area != expected_name:
-            errors.append(
-                f"administrative_area '{administrative_area}' does not match "
-                f"boundary '{expected_name}' for code '{boundary_code}'"
-            )
+        # Check type
+        field_type = field_schema.get("type")
+        if isinstance(field_type, list):
+            # Handle nullable types like ["string", "null"]
+            if "null" in field_type and is_empty:
+                return errors
+            field_type = [t for t in field_type if t != "null"][0]
 
-        return ", ".join(errors) if errors else None
+        # Validate pattern
+        if "pattern" in field_schema:
+            pattern = field_schema["pattern"]
+            if not re.fullmatch(pattern, value_str):
+                errors.append(field_schema.get("description", f"Invalid {field_name}"))
+
+        # Validate enum
+        if "enum" in field_schema:
+            allowed = [str(v) if v is not None else None for v in field_schema["enum"]]
+            if value_str.upper() not in [v.upper() if v else None for v in allowed if v]:
+                errors.append(f"{field_name} must be one of: {[v for v in allowed if v]}")
+
+        # Validate min/max length
+        if "minLength" in field_schema and len(value_str) < field_schema["minLength"]:
+            errors.append(f"{field_name} must be at least {field_schema['minLength']} characters")
+
+        if "maxLength" in field_schema and len(value_str) > field_schema["maxLength"]:
+            errors.append(f"{field_name} exceeds maximum length of {field_schema['maxLength']}")
+
+        # Validate numeric range
+        if field_type == "number":
+            try:
+                num_value = float(value_str)
+                if "minimum" in field_schema and num_value < field_schema["minimum"]:
+                    errors.append(f"{field_name} must be >= {field_schema['minimum']}")
+                if "maximum" in field_schema and num_value > field_schema["maximum"]:
+                    errors.append(f"{field_name} must be <= {field_schema['maximum']}")
+            except ValueError:
+                errors.append(f"{field_name} must be a number")
+
+        return errors
+
+
+    def check_uniqueness(self, df, field_name):
+        """
+        Check for duplicate values in unique fields
+
+        Args:
+            df: DataFrame to check
+            field_name: Field to check for duplicates
+
+        Returns:
+            set: Set of duplicate values
+        """
+        if field_name not in df.columns:
+            return set()
+
+        # Filter out empty/null values
+        values = df[field_name].astype(str).str.strip()
+        values = values[~values.isin(["", "nan", "None"])]
+
+        counts = values.value_counts()
+        return {val for val, count in counts.items() if count > 1}
 
     def validate_csv(self, csv_path):
         """
-        Validate entire CSV file
+        Validate entire CSV file using MDMS schema (fully generic)
 
         Args:
             csv_path: Path to CSV file
@@ -203,68 +182,50 @@ class CSVValidator:
         # Validate headers
         header_status, header_message = self.validate_headers(df)
 
-        # Check for duplicate mobile numbers
-        mobile_counts = df["mobile_number"].astype(str).value_counts()
-        duplicate_mobiles = {m for m, c in mobile_counts.items() if c > 1}
+        # Check uniqueness constraints
+        duplicate_values = {}
+        for field in self.unique_fields:
+            if field in df.columns:
+                duplicate_values[field] = self.check_uniqueness(df, field)
 
-        # Process rows
-        output_rows = []
+        # Prepare output
         csv_headers = list(df.columns)
+        output_rows = []
         final_headers = csv_headers + ["validation_status", "validation_errors"]
         output_rows.append(final_headers)
 
         correct_count = 0
         error_count = 0
 
+        # Validate each row
         for idx, row in df.iterrows():
             error_list = []
 
-            # Validate each field based on schema
-            for field_name, rule in self.validation_rules.items():
-                if field_name not in df.columns:
+            # Validate each field
+            for field_name in csv_headers:
+                if field_name not in self.properties:
                     continue
 
-                validation_type = rule.get("type")
+                # 1. Standard MDMS schema validation
+                field_errors = self.validate_field_against_schema(field_name, row[field_name])
+                error_list.extend(field_errors)
 
-                # Standard validations
-                if validation_type in ["regex", "enum"]:
-                    err = self.validate_field(field_name, row[field_name], rule)
-                    if err:
-                        error_list.append(err)
+                # 2. Custom validator hook (if provided)
+                if field_name in self.custom_validators:
+                    custom_errors = self.custom_validators[field_name](
+                        row[field_name], row, self.reference_data
+                    )
+                    if custom_errors:
+                        if isinstance(custom_errors, list):
+                            error_list.extend(custom_errors)
+                        else:
+                            error_list.append(custom_errors)
 
-                # Date validations
-                elif validation_type == "date" and field_name == "date_of_joining":
-                    corrected_date, err = self.validate_date_of_joining(row[field_name])
-                    if err:
-                        error_list.append(err)
-                    row[field_name] = corrected_date
-
-                elif validation_type == "date" and field_name == "date_of_birth":
-                    err = self.validate_field(field_name, row[field_name], rule)
-                    if err:
-                        error_list.append(err)
-
-                # Custom validations
-                elif validation_type == "custom":
-                    if field_name == "roles":
-                        err = self.validate_roles(row[field_name])
-                        if err:
-                            error_list.append(err)
-
-                    elif field_name == "mobile_number":
-                        mobile = str(row["mobile_number"]).strip()
-                        if mobile in duplicate_mobiles:
-                            error_list.append("Duplicate mobile_number inside CSV")
-
-                    elif field_name in ["boundary_code", "administrative_area"]:
-                        # Validate boundary only once
-                        if field_name == "boundary_code" and "administrative_area" in df.columns:
-                            err = self.validate_boundary(
-                                row["boundary_code"],
-                                row["administrative_area"]
-                            )
-                            if err:
-                                error_list.append(err)
+                # 3. Check uniqueness
+                if field_name in self.unique_fields:
+                    value = str(row[field_name]).strip()
+                    if value and value not in ["", "nan", "None"] and value in duplicate_values[field_name]:
+                        error_list.append(f"Duplicate {field_name}: {value}")
 
             # Determine status
             status = "CORRECT" if not error_list else "ERROR"
@@ -286,6 +247,10 @@ class CSVValidator:
         summary = {
             "header_status": header_status,
             "header_message": header_message,
+            "total_rows": len(df),
+            "correct_rows": correct_count,
+            "error_rows": error_count,
+            # Backwards-compatible aliases expected by caller notebooks
             "total_users": len(df),
             "correct_users": correct_count,
             "error_users": error_count

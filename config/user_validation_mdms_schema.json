@@ -1,0 +1,130 @@
+{
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "required": [
+    "username",
+    "password",
+    "name",
+    "roles",
+    "employment_type",
+    "date_of_joining",
+    "department",
+    "campaign_name",
+    "administrative_area",
+    "boundary_code"
+  ],
+  "x-unique": [
+    "username",
+    "mobile_number"
+  ],
+  "properties": {
+    "username": {
+      "type": "string",
+      "pattern": "^[^/\\.]+$",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Unique username without '/' or '.'"
+    },
+    "password": {
+      "type": "string",
+      "pattern": ".*[A-Z].*",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Password must contain at least one uppercase letter"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z ]+$",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Full name with only alphabets and spaces"
+    },
+    "mobile_number": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{8,15}$",
+      "description": "Mobile number (8-15 digits, must be unique)"
+    },
+    "gender": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": ["MALE", "FEMALE", "OTHER", null],
+      "description": "Gender of the user"
+    },
+    "date_of_birth": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}$",
+      "description": "Date of birth in DD/MM/YYYY format"
+    },
+    "email": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+      "maxLength": 200,
+      "description": "Email address"
+    },
+    "correspondence_address": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500,
+      "description": "Correspondence address"
+    },
+    "roles": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Comma-separated role names (validated against rolesmapping.json)"
+    },
+    "employment_type": {
+      "type": "string",
+      "enum": ["TEMPORARY", "PERMANENT"],
+      "description": "Employment type"
+    },
+    "date_of_joining": {
+      "type": "string",
+      "pattern": "^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}$",
+      "description": "Date of joining in DD/MM/YYYY format (defaults to today if empty)"
+    },
+    "department": {
+      "type": "string",
+      "enum": ["OTHER"],
+      "description": "Department name"
+    },
+    "designation": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 100,
+      "description": "Job designation"
+    },
+    "campaign_name": {
+      "type": "string",
+      "enum": ["LLIN-bi"],
+      "description": "Campaign identifier"
+    },
+    "administrative_area": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Administrative area name (validated against boundary_template.csv)"
+    },
+    "boundary_code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Boundary code (validated against boundary_template.csv)"
+    }
+  },
+  "additionalProperties": false
+}
