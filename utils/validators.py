@@ -12,7 +12,7 @@ import os
 
 class CSVValidator:
     """
-    Generic CSV Validator that works with any MDMS JSON Schema
+   CSV Validator that works with any MDMS JSON Schema
     Supports custom validation hooks for domain-specific logic
     """
 
@@ -168,7 +168,7 @@ class CSVValidator:
 
     def validate_csv(self, csv_path):
         """
-        Validate entire CSV file using MDMS schema (fully generic)
+        Validate entire CSV file using MDMS schema 
 
         Args:
             csv_path: Path to CSV file
