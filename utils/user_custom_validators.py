@@ -55,17 +55,23 @@ def validate_date_of_joining(value, row, reference_data):
     if date_str == "" or date_str.lower() == "nan" or pd.isna(value):
         return ["date_of_joining is required"]
 
-    # Validate format using regex
-    pattern = r"^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/[0-9]{4}$"
+    # Validate format using regex (accepts both / and - separators)
+    pattern = r"^(0[1-9]|[12][0-9]|3[01])[/-](0[1-9]|1[0-2])[/-][0-9]{4}$"
     if not re.fullmatch(pattern, date_str):
-        return ["date_of_joining must be in DD/MM/YYYY format"]
+        return ["date_of_joining must be in DD/MM/YYYY or DD-MM-YYYY format"]
 
-    # Validate actual date
+    # Validate actual date (try both formats)
     try:
+        # Try with slash first
         datetime.strptime(date_str, "%d/%m/%Y")
         return []
     except ValueError:
-        return ["Invalid date_of_joining"]
+        try:
+            # Try with hyphen
+            datetime.strptime(date_str, "%d-%m-%Y")
+            return []
+        except ValueError:
+            return ["Invalid date_of_joining"]
 
 
 def validate_boundary(value, row, reference_data):
