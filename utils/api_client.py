@@ -117,6 +117,8 @@ class APIClient:
             "user exists",
             "username already",
             "conflict",
+            "err_hrms_user_exist",  # API error code
+            "user_exist_mob",       # Mobile number exists
         ]
 
         response_lower = response_text.lower()
@@ -126,6 +128,44 @@ class APIClient:
             return True
 
         return any(pattern in response_lower for pattern in exists_patterns)
+
+    def _parse_api_response(self, response_text):
+        """
+        Parse API response to check for actual success/failure
+        API may return HTTP 200 but with errors in the body
+
+        Args:
+            response_text: API response text (JSON)
+
+        Returns:
+            dict: {success: bool, errors: list, job_status: str}
+        """
+        try:
+            data = json.loads(response_text)
+            job_status = data.get("jobStatus", "")
+            errors = data.get("errors", [])
+            response_status = data.get("ResponseInfo", {}).get("status", "")
+
+            # Check for failure conditions
+            is_success = (
+                job_status in ["Completed", "Success"] or
+                (response_status == "Success" and not errors and job_status != "Partial Completed")
+            )
+
+            return {
+                "success": is_success,
+                "errors": errors,
+                "job_status": job_status,
+                "response_status": response_status
+            }
+        except json.JSONDecodeError:
+            # If not JSON, assume success based on HTTP status
+            return {
+                "success": True,
+                "errors": [],
+                "job_status": "",
+                "response_status": ""
+            }
 
     def _upload_to_endpoint(self, file_path, endpoint_url, mode="CREATE"):
         """
@@ -153,12 +193,31 @@ class APIClient:
                     timeout=60
                 )
 
-            # Parse response
+            # Parse response body to check for actual success/failure
+            # API may return HTTP 200 but with errors in the body
+            parsed = self._parse_api_response(response.text)
+
+            # Determine actual status
+            if response.status_code == 200 and parsed["success"]:
+                status = "SUCCESS"
+            elif response.status_code == 200 and not parsed["success"]:
+                # HTTP 200 but job failed or has errors
+                status = "ERROR"
+            else:
+                status = "ERROR"
+
+            # Build error message from parsed errors
+            if parsed["errors"]:
+                error_msg = "; ".join(parsed["errors"]) if isinstance(parsed["errors"], list) else str(parsed["errors"])
+            else:
+                error_msg = response.text
+
             result = {
-                "status": "SUCCESS" if response.status_code == 200 else "ERROR",
+                "status": status,
                 "status_code": response.status_code,
-                "message": response.text,
-                "mode": mode
+                "message": error_msg if status == "ERROR" else response.text,
+                "mode": mode,
+                "job_status": parsed["job_status"]
             }
 
             return result
@@ -168,21 +227,24 @@ class APIClient:
                 "status": "ERROR",
                 "status_code": 408,
                 "message": "Request timeout",
-                "mode": mode
+                "mode": mode,
+                "job_status": ""
             }
         except requests.exceptions.RequestException as e:
             return {
                 "status": "ERROR",
                 "status_code": 500,
                 "message": str(e),
-                "mode": mode
+                "mode": mode,
+                "job_status": ""
             }
         except Exception as e:
             return {
                 "status": "ERROR",
                 "status_code": 500,
                 "message": f"Unexpected error: {str(e)}",
-                "mode": mode
+                "mode": mode,
+                "job_status": ""
             }
 
     def upload_file(self, file_path, mode="AUTO"):
@@ -212,6 +274,9 @@ class APIClient:
             else:
                 result["status"] = "FAILED"
                 result["operation"] = "CREATE_FAILED"
+                # Add helpful message if user already exists
+                if self._check_if_user_exists(result["message"], result["status_code"]):
+                    result["message"] = f"User already exists (CREATE mode rejects duplicates). {result['message']}"
 
         elif mode == "UPDATE":
             # Force UPDATE only
