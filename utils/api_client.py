@@ -167,14 +167,13 @@ class APIClient:
                 "response_status": ""
             }
 
-    def _upload_to_endpoint(self, file_path, endpoint_url, mode="CREATE"):
+    def _upload_to_endpoint(self, file_path, endpoint_url):
         """
         Internal method to upload file to specific endpoint
 
         Args:
             file_path: Path to file to upload
             endpoint_url: API endpoint URL
-            mode: Operation mode (CREATE/UPDATE)
 
         Returns:
             dict: Response data with status, status_code, and message
@@ -216,7 +215,6 @@ class APIClient:
                 "status": status,
                 "status_code": response.status_code,
                 "message": error_msg if status == "ERROR" else response.text,
-                "mode": mode,
                 "job_status": parsed["job_status"]
             }
 
@@ -227,7 +225,6 @@ class APIClient:
                 "status": "ERROR",
                 "status_code": 408,
                 "message": "Request timeout",
-                "mode": mode,
                 "job_status": ""
             }
         except requests.exceptions.RequestException as e:
@@ -235,7 +232,6 @@ class APIClient:
                 "status": "ERROR",
                 "status_code": 500,
                 "message": str(e),
-                "mode": mode,
                 "job_status": ""
             }
         except Exception as e:
@@ -243,75 +239,29 @@ class APIClient:
                 "status": "ERROR",
                 "status_code": 500,
                 "message": f"Unexpected error: {str(e)}",
-                "mode": mode,
                 "job_status": ""
             }
 
-    def upload_file(self, file_path, mode="AUTO"):
+    def upload_file(self, file_path):
         """
-        Upload a single file to API with flexible mode control
-
-        Modes:
-        - AUTO: Smart UPSERT - Try CREATE first, auto-retry UPDATE if exists
-        - CREATE: Force CREATE only - Fail if user already exists
-        - UPDATE: Force UPDATE only - Fail if user doesn't exist
+        Upload a single file to API (CREATE mode)
 
         Args:
             file_path: Path to file to upload
-            mode: Upload mode ("AUTO", "CREATE", "UPDATE")
 
         Returns:
-            dict: Response data with status (CREATED/UPDATED/FAILED), status_code, and message
+            dict: Response data with status (CREATED/FAILED), status_code, and message
         """
-        mode = mode.upper()
-
-        if mode == "CREATE":
-            # Force CREATE only
-            result = self._upload_to_endpoint(file_path, self.api_url, mode="CREATE")
-            if result["status"] == "SUCCESS":
-                result["status"] = "CREATED"
-                result["operation"] = "CREATE"
-            else:
-                result["status"] = "FAILED"
-                result["operation"] = "CREATE_FAILED"
-                # Add helpful message if user already exists
-                if self._check_if_user_exists(result["message"], result["status_code"]):
-                    result["message"] = f"User already exists (CREATE mode rejects duplicates). {result['message']}"
-
-        elif mode == "UPDATE":
-            # Force UPDATE only
-            result = self._upload_to_endpoint(file_path, self.update_url, mode="UPDATE")
-            if result["status"] == "SUCCESS":
-                result["status"] = "UPDATED"
-                result["operation"] = "UPDATE"
-            else:
-                result["status"] = "FAILED"
-                result["operation"] = "UPDATE_FAILED"
-
-        else:  # mode == "AUTO"
-            # Smart UPSERT: Try CREATE first
-            result = self._upload_to_endpoint(file_path, self.api_url, mode="CREATE")
-
-            # If CREATE failed, check if user exists
-            if result["status"] == "ERROR":
-                if self._check_if_user_exists(result["message"], result["status_code"]):
-                    # User exists - retry with UPDATE
-                    result = self._upload_to_endpoint(file_path, self.update_url, mode="UPDATE")
-
-                    if result["status"] == "SUCCESS":
-                        result["status"] = "UPDATED"
-                        result["operation"] = "UPDATE"
-                    else:
-                        result["status"] = "FAILED"
-                        result["operation"] = "UPDATE_FAILED"
-                else:
-                    # Other error - mark as FAILED
-                    result["status"] = "FAILED"
-                    result["operation"] = "CREATE_FAILED"
-            elif result["status"] == "SUCCESS":
-                # CREATE succeeded
-                result["status"] = "CREATED"
-                result["operation"] = "CREATE"
+        result = self._upload_to_endpoint(file_path, self.api_url)
+        if result["status"] == "SUCCESS":
+            result["status"] = "CREATED"
+            result["operation"] = "CREATE"
+        else:
+            result["status"] = "FAILED"
+            result["operation"] = "CREATE_FAILED"
+            # Add helpful message if user already exists
+            if self._check_if_user_exists(result["message"], result["status_code"]):
+                result["message"] = f"User already exists. {result['message']}"
 
         return result
 
@@ -354,7 +304,7 @@ class APIClient:
 
                 # Update DataFrame with API response
                 df.at[idx, 'api_status'] = result['status']
-                df.at[idx, 'api_status_code'] = result['status_code']
+                df.at[idx, 'api_status_code'] = str(result['status_code'])
                 df.at[idx, 'api_message'] = result['message']
 
                 # Count based on new status values
