@@ -15,7 +15,7 @@ class APIClient:
     API Client for uploading user data to DHIS2 ingestion endpoint
     """
 
-    def __init__(self, api_url, tenant_id="bi", auth_token=None, update_url=None):
+    def __init__(self, api_url, tenant_id="bi", auth_token=None):
         """
         Initialize API client
 
@@ -23,10 +23,8 @@ class APIClient:
             api_url: API endpoint URL (for CREATE)
             tenant_id: Tenant ID
             auth_token: Authentication token
-            update_url: Optional separate UPDATE endpoint (defaults to api_url)
         """
         self.api_url = api_url
-        self.update_url = update_url or api_url  # Use same URL if not specified
         self.tenant_id = tenant_id
         self.auth_token = auth_token or "ee36fdd7-64e7-4583-9c16-998479ff53c0"
 
