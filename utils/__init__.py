@@ -1,6 +1,5 @@
 """
-Utilities module
-Provides easy access to validators and API clients
+Utilities for validation and API upload
 """
 
 from .validators import CSVValidator
@@ -11,13 +10,7 @@ import json
 
 
 def create_user_validator():
-    """
-    Factory function to create a pre-configured validator for user ingestion
-
-    Returns:
-        CSVValidator: Configured validator for user data
-    """
-    # Load reference data
+    """Set up a CSVValidator with roles, boundaries, and custom field checks."""
     with open("templates/rolesmapping.json", 'r') as f:
         roles_map = json.load(f)
 
@@ -27,20 +20,17 @@ def create_user_validator():
         for _, row in boundary_df.iterrows()
     }
 
-    # Setup reference data
     reference_data = {
         "roles": roles_map,
         "boundaries": boundaries
     }
 
-    # Setup custom validators
     custom_validators = {
         "roles": validate_roles,
         "date_of_joining": validate_date_of_joining,
         "boundary_code": validate_boundary
     }
 
-    # Return configured validator
     return CSVValidator(
         schema_path="config/user_validation_mdms_schema.json",
         reference_data=reference_data,

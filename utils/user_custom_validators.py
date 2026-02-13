@@ -1,6 +1,5 @@
 """
-Custom validators for user ingestion
-These are plugged into the generic CSVValidator
+Custom validators for user ingestion fields (roles, dates, boundaries)
 """
 
 import pandas as pd
@@ -9,17 +8,7 @@ import re
 
 
 def validate_roles(value, row, reference_data):
-    """
-    Validate roles against roles mapping
-
-    Args:
-        value: The role string value
-        row: The entire row (pandas Series)
-        reference_data: Dict containing "roles" mapping
-
-    Returns:
-        list: List of error messages (empty if valid)
-    """
+    """Check each role against the roles mapping file."""
     errors = []
     roles_map = reference_data.get("roles", {})
 
@@ -39,35 +28,22 @@ def validate_roles(value, row, reference_data):
 
 
 def validate_date_of_joining(value, row, reference_data):
-    """
-    Validate date of joining (strict - no auto-correction)
-
-    Args:
-        value: The date string value
-        row: The entire row (pandas Series)
-        reference_data: Dict (not used here)
-
-    Returns:
-        list: List of error messages (empty if valid)
-    """
+    """Validate date format (DD/MM/YYYY or DD-MM-YYYY) and check it's a real date."""
     date_str = str(value).strip()
 
     if date_str == "" or date_str.lower() == "nan" or pd.isna(value):
         return ["date_of_joining is required"]
 
-    # Validate format using regex (accepts both / and - separators)
+    # Accepts both / and - separators
     pattern = r"^(0[1-9]|[12][0-9]|3[01])[/-](0[1-9]|1[0-2])[/-][0-9]{4}$"
     if not re.fullmatch(pattern, date_str):
         return ["date_of_joining must be in DD/MM/YYYY or DD-MM-YYYY format"]
 
-    # Validate actual date (try both formats)
     try:
-        # Try with slash first
         datetime.strptime(date_str, "%d/%m/%Y")
         return []
     except ValueError:
         try:
-            # Try with hyphen
             datetime.strptime(date_str, "%d-%m-%Y")
             return []
         except ValueError:
@@ -75,17 +51,7 @@ def validate_date_of_joining(value, row, reference_data):
 
 
 def validate_boundary(value, row, reference_data):
-    """
-    Validate boundary code and administrative area match
-
-    Args:
-        value: The boundary_code value
-        row: The entire row (pandas Series)
-        reference_data: Dict containing "boundaries" mapping
-
-    Returns:
-        list: List of error messages (empty if valid)
-    """
+    """Make sure boundary_code and administrative_area match in boundary_template."""
     errors = []
     boundaries = reference_data.get("boundaries", {})
 

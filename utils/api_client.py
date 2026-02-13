@@ -1,34 +1,20 @@
 """
-API Client Module
-Handles user ingestion via API
+API client for DHIS2 user ingestion
 """
 
 import requests
-import time
 import json
-import pandas as pd
 from datetime import datetime
 
 
 class APIClient:
-    """
-    API Client for uploading user data to DHIS2 ingestion endpoint
-    """
+    """Handles uploading user CSV files to the DHIS2 ingestion endpoint."""
 
     def __init__(self, api_url, tenant_id="bi", auth_token=None):
-        """
-        Initialize API client
-
-        Args:
-            api_url: API endpoint URL (for CREATE)
-            tenant_id: Tenant ID
-            auth_token: Authentication token
-        """
         self.api_url = api_url
         self.tenant_id = tenant_id
         self.auth_token = auth_token or "ee36fdd7-64e7-4583-9c16-998479ff53c0"
 
-        # Default user info for request
         self.user_info = {
             "id": 97,
             "userName": "ab-prd",
@@ -70,7 +56,6 @@ class APIClient:
         }
 
     def _get_default_roles(self):
-        """Get default roles for the request"""
         return [
             {"code": "SUPERVISOR", "name": "Supervisor", "tenantId": self.tenant_id},
             {"code": "DISTRICT_SUPERVISOR", "name": "District Supervisor", "tenantId": self.tenant_id},
@@ -84,7 +69,6 @@ class APIClient:
         ]
 
     def _build_payload(self):
-        """Build request payload"""
         return {
             "DHIS2IngestionRequest": json.dumps({
                 "tenantId": self.tenant_id,
@@ -97,17 +81,7 @@ class APIClient:
         }
 
     def _check_if_user_exists(self, response_text, status_code):
-        """
-        Check if the error indicates user already exists
-
-        Args:
-            response_text: API response text
-            status_code: HTTP status code
-
-        Returns:
-            bool: True if user already exists
-        """
-        # Common patterns for "already exists" errors
+        """Check if the API error is about a user that already exists."""
         exists_patterns = [
             "already exists",
             "already exist",
@@ -115,13 +89,12 @@ class APIClient:
             "user exists",
             "username already",
             "conflict",
-            "err_hrms_user_exist",  # API error code
-            "user_exist_mob",       # Mobile number exists
+            "err_hrms_user_exist",
+            "user_exist_mob",
         ]
 
         response_lower = response_text.lower()
 
-        # Check status code 409 (Conflict) or patterns in message
         if status_code == 409:
             return True
 
@@ -129,14 +102,8 @@ class APIClient:
 
     def _parse_api_response(self, response_text):
         """
-        Parse API response to check for actual success/failure
-        API may return HTTP 200 but with errors in the body
-
-        Args:
-            response_text: API response text (JSON)
-
-        Returns:
-            dict: {success: bool, errors: list, job_status: str}
+        Parse the response body for real success/failure.
+        The API sometimes returns HTTP 200 but has errors inside the JSON.
         """
         try:
             data = json.loads(response_text)
@@ -144,7 +111,6 @@ class APIClient:
             errors = data.get("errors", [])
             response_status = data.get("ResponseInfo", {}).get("status", "")
 
-            # Check for failure conditions
             is_success = (
                 job_status in ["Completed", "Success"] or
                 (response_status == "Success" and not errors and job_status != "Partial Completed")
@@ -157,7 +123,7 @@ class APIClient:
                 "response_status": response_status
             }
         except json.JSONDecodeError:
-            # If not JSON, assume success based on HTTP status
+            # Not JSON, just go by HTTP status
             return {
                 "success": True,
                 "errors": [],
@@ -166,16 +132,7 @@ class APIClient:
             }
 
     def _upload_to_endpoint(self, file_path, endpoint_url):
-        """
-        Internal method to upload file to specific endpoint
-
-        Args:
-            file_path: Path to file to upload
-            endpoint_url: API endpoint URL
-
-        Returns:
-            dict: Response data with status, status_code, and message
-        """
+        """Send the file to the API and return parsed result."""
         payload = self._build_payload()
         headers = {'Accept': 'application/json'}
 
@@ -190,33 +147,25 @@ class APIClient:
                     timeout=60
                 )
 
-            # Parse response body to check for actual success/failure
-            # API may return HTTP 200 but with errors in the body
             parsed = self._parse_api_response(response.text)
 
-            # Determine actual status
             if response.status_code == 200 and parsed["success"]:
                 status = "SUCCESS"
-            elif response.status_code == 200 and not parsed["success"]:
-                # HTTP 200 but job failed or has errors
-                status = "ERROR"
             else:
+                # Could be HTTP 200 with errors in body, or a non-200 code
                 status = "ERROR"
 
-            # Build error message from parsed errors
             if parsed["errors"]:
                 error_msg = "; ".join(parsed["errors"]) if isinstance(parsed["errors"], list) else str(parsed["errors"])
             else:
                 error_msg = response.text
 
-            result = {
+            return {
                 "status": status,
                 "status_code": response.status_code,
                 "message": error_msg if status == "ERROR" else response.text,
                 "job_status": parsed["job_status"]
             }
-
-            return result
 
         except requests.exceptions.Timeout:
             return {
@@ -241,100 +190,14 @@ class APIClient:
             }
 
     def upload_file(self, file_path):
-        """
-        Upload a single file to API (CREATE mode)
-
-        Args:
-            file_path: Path to file to upload
-
-        Returns:
-            dict: Response data with status (CREATED/FAILED), status_code, and message
-        """
+        """Upload a single CSV file. Returns SUCCESS or FAILED."""
         result = self._upload_to_endpoint(file_path, self.api_url)
         if result["status"] == "SUCCESS":
-            result["status"] = "CREATED"
-            result["operation"] = "CREATE"
+            result["status"] = "SUCCESS"
         else:
             result["status"] = "FAILED"
-            result["operation"] = "CREATE_FAILED"
-            # Add helpful message if user already exists
             if self._check_if_user_exists(result["message"], result["status_code"]):
                 result["message"] = f"User already exists. {result['message']}"
 
         return result
 
-    def process_validated_csv(self, validated_csv_path, output_path, delay=5):
-        """
-        Process validated CSV and upload to API, tracking responses per row
-
-        Args:
-            validated_csv_path: Path to validated CSV
-            output_path: Path to save output CSV with API responses
-            delay: Delay between requests in seconds
-
-        Returns:
-            dict: Summary of ingestion results
-        """
-        # Read validated CSV
-        df = pd.read_csv(validated_csv_path)
-
-        # Initialize API response columns
-        df['api_status'] = ''
-        df['api_status_code'] = ''
-        df['api_message'] = ''
-
-        success_count = 0
-        error_count = 0
-        skipped_count = 0
-
-        # Only process rows with validation_status = 'CORRECT'
-        for idx, row in df.iterrows():
-            if row.get('validation_status') == 'CORRECT':
-                print(f"Processing row {idx + 1}/{len(df)}: {row.get('username', 'N/A')}")
-
-                # Create temp CSV for single row
-                temp_file = f"temp_upload_{idx}.csv"
-                single_row_df = pd.DataFrame([row])
-                single_row_df.to_csv(temp_file, index=False)
-
-                # Upload
-                result = self.upload_file(temp_file)
-
-                # Update DataFrame with API response
-                df.at[idx, 'api_status'] = result['status']
-                df.at[idx, 'api_status_code'] = str(result['status_code'])
-                df.at[idx, 'api_message'] = result['message']
-
-                # Count based on new status values
-                if result['status'] in ['CREATED', 'UPDATED']:
-                    success_count += 1
-                else:
-                    error_count += 1
-
-                # Clean up temp file
-                import os
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-
-                # Delay between requests
-                if delay > 0:
-                    time.sleep(delay)
-            else:
-                # Skip rows with validation errors
-                df.at[idx, 'api_status'] = 'SKIPPED'
-                df.at[idx, 'api_status_code'] = 'N/A'
-                df.at[idx, 'api_message'] = 'Validation failed'
-                skipped_count += 1
-
-        # Save output
-        df.to_csv(output_path, index=False)
-
-        summary = {
-            "total_rows": len(df),
-            "success": success_count,
-            "error": error_count,
-            "skipped": skipped_count,
-            "output_file": output_path
-        }
-
-        return summary
