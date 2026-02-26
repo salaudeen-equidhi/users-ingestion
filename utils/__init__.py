@@ -4,7 +4,7 @@ Utilities for validation and API upload
 
 from .validators import CSVValidator
 from .api_client import APIClient
-from .user_custom_validators import validate_roles, validate_date_of_joining, validate_boundary
+from .user_custom_validators import validate_roles, validate_date_of_joining, validate_date_of_birth, validate_boundary
 import pandas as pd
 import json
 
@@ -28,6 +28,7 @@ def create_user_validator():
     custom_validators = {
         "roles": validate_roles,
         "date_of_joining": validate_date_of_joining,
+        "date_of_birth": validate_date_of_birth,
         "boundary_code": validate_boundary
     }
 

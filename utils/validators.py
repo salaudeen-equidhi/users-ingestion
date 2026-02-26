@@ -114,11 +114,15 @@ class CSVValidator:
 
     def validate_csv(self, csv_path):
         """Run all validations on a CSV and return the DataFrame with status columns."""
-        df = pd.read_csv(csv_path)
+        try:
+            df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
+        except UnicodeDecodeError:
+            df = pd.read_csv(csv_path, dtype=str, keep_default_na=False, encoding='latin-1')
         df.columns = df.columns.str.strip()
         status_cols = ['validation_status', 'validation_errors', 'api_status', 'api_status_code', 'api_message']
         df.drop(columns=[c for c in status_cols if c in df.columns], inplace=True)
-        df.dropna(how='all', inplace=True)
+        if not df.empty:
+            df = df[~df.apply(lambda row: all(str(v).strip() == '' for v in row), axis=1)]
         df.reset_index(drop=True, inplace=True)
 
         header_status, header_message = self.validate_headers(df)

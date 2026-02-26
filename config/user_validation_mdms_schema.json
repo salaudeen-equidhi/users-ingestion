@@ -20,10 +20,10 @@
   "properties": {
     "username": {
       "type": "string",
-      "pattern": "^[^/\\.]+$",
+      "pattern": "^[^/\\\\.]+$",
       "minLength": 1,
       "maxLength": 100,
-      "description": "Unique username without '/' or '.'"
+      "description": "Unique username without '/', '\\' or '.'"
     },
     "password": {
       "type": "string",

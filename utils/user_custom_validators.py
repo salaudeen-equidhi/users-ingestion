@@ -51,6 +51,29 @@ def validate_date_of_joining(value, row, reference_data):
             return ["Invalid date_of_joining"]
 
 
+def validate_date_of_birth(value, row, reference_data):
+    """Validate date_of_birth is a real date (e.g. reject 31/02/2000)."""
+    date_str = str(value).strip()
+
+    if date_str == "" or date_str.lower() == "nan" or pd.isna(value):
+        return []  # Optional field, schema handles format check
+
+    # Only validate if format looks right (schema regex handles format errors)
+    pattern = r"^(0[1-9]|[12][0-9]|3[01])[/-](0[1-9]|1[0-2])[/-][0-9]{4}$"
+    if not re.fullmatch(pattern, date_str):
+        return []  # Schema pattern check will catch format issues
+
+    try:
+        datetime.strptime(date_str, "%d/%m/%Y")
+        return []
+    except ValueError:
+        try:
+            datetime.strptime(date_str, "%d-%m-%Y")
+            return []
+        except ValueError:
+            return [f"Invalid date_of_birth: {date_str} is not a real date"]
+
+
 def validate_boundary(value, row, reference_data):
     """Make sure boundary_code and administrative_area match in boundary_template."""
     errors = []
