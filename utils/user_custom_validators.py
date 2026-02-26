@@ -16,10 +16,11 @@ def validate_roles(value, row, reference_data):
         return errors
 
     if str(value).strip() == "" or pd.isna(value):
-        return ["roles cannot be empty"]
+        return []  # Schema already handles required check
 
     user_roles = [r.strip() for r in str(value).split(",")]
-    invalid_roles = [r for r in user_roles if r not in roles_map]
+    valid_role_keys = {k for k, v in roles_map.items() if isinstance(v, str)}
+    invalid_roles = [r for r in user_roles if r not in valid_role_keys]
 
     if invalid_roles:
         errors.append(f"Invalid roles: {', '.join(invalid_roles)}")
@@ -32,7 +33,7 @@ def validate_date_of_joining(value, row, reference_data):
     date_str = str(value).strip()
 
     if date_str == "" or date_str.lower() == "nan" or pd.isna(value):
-        return ["date_of_joining is required"]
+        return []  # Schema already handles required check
 
     # Accepts both / and - separators
     pattern = r"^(0[1-9]|[12][0-9]|3[01])[/-](0[1-9]|1[0-2])[/-][0-9]{4}$"

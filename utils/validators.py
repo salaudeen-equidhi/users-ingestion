@@ -115,6 +115,11 @@ class CSVValidator:
     def validate_csv(self, csv_path):
         """Run all validations on a CSV and return the DataFrame with status columns."""
         df = pd.read_csv(csv_path)
+        df.columns = df.columns.str.strip()
+        status_cols = ['validation_status', 'validation_errors', 'api_status', 'api_status_code', 'api_message']
+        df.drop(columns=[c for c in status_cols if c in df.columns], inplace=True)
+        df.dropna(how='all', inplace=True)
+        df.reset_index(drop=True, inplace=True)
 
         header_status, header_message = self.validate_headers(df)
 
@@ -124,7 +129,8 @@ class CSVValidator:
             if field in df.columns:
                 duplicate_values[field] = self.check_uniqueness(df, field)
 
-        csv_headers = list(df.columns)
+        excluded_cols = {"validation_status", "validation_errors", "api_status", "api_status_code", "api_message"}
+        csv_headers = [c for c in df.columns if c not in excluded_cols]
         output_rows = []
         final_headers = csv_headers + ["validation_status", "validation_errors"]
         output_rows.append(final_headers)
