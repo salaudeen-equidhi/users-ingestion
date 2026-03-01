@@ -118,7 +118,8 @@ class UserIngestorApp:
                 self.api_url_input.value,
                 self.tenant_id_input.value,
                 None,
-                log
+                log,
+                output_widget=self.process_output
             )
             self.status_label.value = self.summary_data['status_label']
 

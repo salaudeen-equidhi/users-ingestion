@@ -112,7 +112,7 @@ class CSVValidator:
         counts = values.value_counts()
         return {val for val, count in counts.items() if count > 1}
 
-    def validate_csv(self, csv_path):
+    def validate_csv(self, csv_path, progress_callback=None):
         """Run all validations on a CSV and return the DataFrame with status columns."""
         try:
             df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
@@ -180,6 +180,9 @@ class CSVValidator:
             row_data = [row[col] for col in csv_headers]
             row_data.extend([status, str(error_list)])
             output_rows.append(row_data)
+
+            if progress_callback:
+                progress_callback(idx + 1, len(df))
 
         validated_df = pd.DataFrame(output_rows[1:], columns=output_rows[0])
 
